@@ -6,15 +6,16 @@ import { prisma } from "@/lib/db";
 export async function POST(req: NextRequest) {
   const { plan } = await req.json();
   const { userId } = await auth();
-  const price = plan === "pro" ? process.env.STRIPE_PRICE_PRO! : process.env.STRIPE_PRICE_BASIC!;
-  if (!userId) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if(!userId) return NextResponse.json({ error:"Not signed in" }, { status:401 });
+  const price = plan==="pro" ? process.env.STRIPE_PRICE_PRO! : process.env.STRIPE_PRICE_BASIC!;
 
-  let sc = await prisma.stripeCustomer.findUnique({ where:{ userId } });
-  if (!sc) {
-    const sessionUser = await fetch("https://api.clerk.com/v1/users/"+userId, { headers:{ Authorization:`Bearer ${process.env.CLERK_SECRET_KEY}` }}).then(r=>r.json()).catch(()=>null);
-    const email = sessionUser?.email_addresses?.[0]?.email_address;
-    const customer = await stripe.customers.create({ email });
-    sc = await prisma.stripeCustomer.create({ data:{ userId, customer: customer.id }});
+  let user = await prisma.user.findFirst({ where:{ clerkId:userId }});
+  if(!user) user = await prisma.user.create({ data:{ clerkId:userId }});
+
+  let sc = await prisma.stripeCustomer.findUnique({ where:{ userId:user.id }});
+  if(!sc) {
+    const customer = await stripe.customers.create({ email: user.email || undefined });
+    sc = await prisma.stripeCustomer.create({ data:{ userId:user.id, customer: customer.id }});
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -27,3 +28,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ url: session.url });
 }
+
