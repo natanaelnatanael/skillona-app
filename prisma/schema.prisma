@@ -2,12 +2,13 @@ generator client { provider = "prisma-client-js" }
 datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
 
 model User {
-  id         String  @id @default(cuid())
-  clerkId    String  @unique
+  id         String   @id @default(cuid())
+  clerkId    String   @unique
   email      String?
-  plan       String  @default("free") // free | basic | pro
+  plan       String   @default("free") // free | basic | pro
   createdAt  DateTime @default(now())
   jobs       Job[]
+  StripeCustomer StripeCustomer?
 }
 
 model Job {
@@ -26,7 +27,8 @@ model StripeCustomer {
   userId    String   @unique
   customer  String   @unique
   priceId   String?
-  plan      String?  // basic | pro
-  status    String?  // active | canceled | incomplete...
+  plan      String?
+  status    String?
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
