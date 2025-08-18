@@ -20,6 +20,9 @@
     "@types/node": "20.5.9",
     "@types/react": "18.2.20",
     "prisma": "5.16.2"
+  },
+  "overrides": {
+    "@clerk/nextjs": "5.3.3"
   }
 }
 
