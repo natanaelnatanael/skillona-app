@@ -13,20 +13,23 @@ model User {
   email     String   @unique
   plan      String   @default("free") // free | basic | pro
   createdAt DateTime @default(now())
-  jobs      Job[]
-  stripeCustomer StripeCustomer?
+
+  jobs              Job[]
+  stripeCustomer    StripeCustomer?
 }
 
 model Job {
   id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
   userId    String
+  createdAt DateTime @default(now())
 }
 
 model StripeCustomer {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id])
   userId    String   @unique
-  stripeId  String
+  stripeId  String   @unique
+  createdAt DateTime @default(now())
 }
+
