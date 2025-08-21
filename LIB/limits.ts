@@ -1,4 +1,4 @@
-export const FREE_PLAN_LIMIT = 3; // broj besplatnih videa
+export const FREE_PLAN_LIMIT = 3;
 export const BASIC_PLAN_LIMIT = 30;
 export const PRO_PLAN_LIMIT = 999;
 
