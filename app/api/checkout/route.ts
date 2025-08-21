@@ -1,43 +1,29 @@
-import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
+// app/api/checkout/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { stripe } from "@lib/stripe";
 
-export const runtime = "nodejs";
+export async function POST(req: NextRequest) {
+  try {
+    const { plan } = await req.json(); // "basic" | "pro"
+    const priceId =
+      plan === "pro"
+        ? process.env.STRIPE_PRICE_PRO
+        : process.env.STRIPE_PRICE_BASIC;
 
-export async function POST() {
-  const { userId } = auth();
-  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+    if (!priceId) {
+      return new NextResponse("Stripe price ID is missing", { status: 400 });
+    }
 
-  // fetch user
-  let user = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (!user) {
-    user = await prisma.user.create({
-      data: { clerkId: userId, email: "", plan: "free" },
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/billing`,
+      allow_promotion_codes: true,
     });
+
+    return NextResponse.json({ url: session.url });
+  } catch (err: any) {
+    return new NextResponse(err.message ?? "Checkout error", { status: 500 });
   }
-
-  // ensure Stripe customer
-  let sc = await prisma.stripeCustomer.findUnique({ where: { userId: user.id } });
-  if (!sc) {
-    const customer = await stripe.customers.create({ metadata: { appUserId: user.id } });
-    sc = await prisma.stripeCustomer.create({
-      data: { userId: user.id, stripeId: customer.id },
-    });
-  }
-
-  // pick price from env
-  const priceId = process.env.STRIPE_PRICE_PRO || process.env.STRIPE_PRICE_BASIC;
-  if (!priceId) return new NextResponse("Missing STRIPE_PRICE_*", { status: 500 });
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: sc.stripeId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/pricing`,
-    metadata: { appUserId: user.id },
-  });
-
-  return NextResponse.json({ url: session.url });
 }
