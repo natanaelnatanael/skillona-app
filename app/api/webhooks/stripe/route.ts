@@ -1,106 +1,74 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const sig = headers().get("stripe-signature");
-  if (!sig) return NextResponse.json({ error: "No signature" }, { status: 400 });
+  const sig = req.headers.get("stripe-signature");
+  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET) return new NextResponse("Bad sig", { status: 400 });
 
-  const whSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-  let event;
+  const rawBody = await req.text();
 
+  let event: Stripe.Event;
   try {
-    const body = await req.text(); // raw body for Stripe
-    event = await stripe.webhooks.constructEventAsync(body, sig, whSecret);
+    // @ts-ignore types import at runtime
+    event = (await (stripe as any).webhooks.constructEvent(
+      rawBody,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    )) as Stripe.Event;
   } catch (err: any) {
-    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
+    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  try {
-    // OPTIONAL: log all events
-    await prisma.webhookEvent.create({
-      data: { id: event.id, type: event.type, payload: event as any },
-    });
-  } catch {}
+  // store event
+  await prisma.webhookEvent.create({
+    data: { type: event.type, payload: event as any },
+  });
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as any;
-      const userId = session.metadata?.userId as string | undefined;
-      const plan = session.metadata?.plan as string | undefined;
+  // handle subscription events
+  if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
+    const sub = event.data.object as any;
+    const customerId = sub.customer as string;
 
-      // fetch full session (to get customer/sub id)
-      const full = await stripe.checkout.sessions.retrieve(session.id, {
-        expand: ["subscription", "customer"],
+    const sc = await prisma.stripeCustomer.findFirst({ where: { stripeId: customerId } });
+    if (sc) {
+      await prisma.subscription.upsert({
+        where: { stripeSubId: sub.id },
+        update: {
+          status: sub.status,
+          plan: sub.items?.data?.[0]?.price?.id || "unknown",
+          currentPeriodStart: new Date(sub.current_period_start * 1000),
+          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        },
+        create: {
+          userId: sc.userId,
+          stripeSubId: sub.id,
+          status: sub.status,
+          plan: sub.items?.data?.[0]?.price?.id || "unknown",
+          currentPeriodStart: new Date(sub.current_period_start * 1000),
+          currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        },
       });
 
-      const stripeCustomerId =
-        (full.customer as any)?.id ?? (full.customer as string) ?? undefined;
-      const stripeSubId =
-        (full.subscription as any)?.id ?? (full.subscription as string) ?? undefined;
-
-      if (userId && stripeCustomerId) {
-        // ensure StripeCustomer
-        await prisma.stripeCustomer.upsert({
-          where: { userId },
-          update: { stripeId: stripeCustomerId },
-          create: { userId, stripeId: stripeCustomerId, id: crypto.randomUUID() },
-        });
+      // optional: set User.plan by mapping price to plan
+      if (process.env.STRIPE_PRICE_PRO && sub.items?.data?.[0]?.price?.id === process.env.STRIPE_PRICE_PRO) {
+        await prisma.user.update({ where: { id: sc.userId }, data: { plan: "pro" } });
+      } else if (process.env.STRIPE_PRICE_BASIC && sub.items?.data?.[0]?.price?.id === process.env.STRIPE_PRICE_BASIC) {
+        await prisma.user.update({ where: { id: sc.userId }, data: { plan: "basic" } });
       }
-
-      if (userId && stripeSubId) {
-        // upsert subscription
-        await prisma.subscription.upsert({
-          where: { stripeSubId },
-          update: {
-            plan: plan ?? "basic",
-            status: "active",
-            currentPeriodStart: new Date(
-              (full.subscription as any)?.current_period_start * 1000
-            ),
-            currentPeriodEnd: new Date(
-              (full.subscription as any)?.current_period_end * 1000
-            ),
-          },
-          create: {
-            id: crypto.randomUUID(),
-            userId,
-            stripeSubId,
-            plan: plan ?? "basic",
-            status: "active",
-            currentPeriodStart: new Date(
-              (full.subscription as any)?.current_period_start * 1000
-            ),
-            currentPeriodEnd: new Date(
-              (full.subscription as any)?.current_period_end * 1000
-            ),
-          },
-        });
-
-        // set user.plan
-        await prisma.user.update({
-          where: { id: userId },
-          data: { plan: plan ?? "basic" },
-        });
-      }
-      break;
-    }
-
-    case "customer.subscription.deleted": {
-      const sub = event.data.object as any;
-      await prisma.subscription
-        .update({
-          where: { stripeSubId: sub.id },
-          data: { status: "canceled" },
-        })
-        .catch(() => {});
-      break;
     }
   }
 
-  return NextResponse.json({ received: true }, { status: 200 });
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as any;
+    const existing = await prisma.subscription.findUnique({ where: { stripeSubId: sub.id } });
+    if (existing) {
+      await prisma.subscription.update({ where: { stripeSubId: sub.id }, data: { status: "canceled" } });
+      await prisma.user.update({ where: { id: existing.userId }, data: { plan: "free" } });
+    }
+  }
+
+  return NextResponse.json({ received: true });
 }
