@@ -1,14 +1,4 @@
-export const FREE_PLAN_LIMIT = 3;
-export const BASIC_PLAN_LIMIT = 30;
-export const PRO_PLAN_LIMIT = 999;
+export const FREE_LIMIT = 5;
+export const BASIC_LIMIT = 200;
+export const PRO_LIMIT = 1000;
 
-export function getLimitByPlan(plan: string) {
-  switch (plan) {
-    case "basic":
-      return BASIC_PLAN_LIMIT;
-    case "pro":
-      return PRO_PLAN_LIMIT;
-    default:
-      return FREE_PLAN_LIMIT;
-  }
-}
