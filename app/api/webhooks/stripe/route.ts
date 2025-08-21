@@ -1,30 +1,106 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 
-export async function POST(req: NextRequest) {
-  const sig = req.headers.get("stripe-signature") as string;
-  const buf = await req.text();
-  let evt: Stripe.Event;
-  try { evt = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET!); }
-  catch (e:any) { return new NextResponse(`Webhook error: ${e.message}`, { status: 400 }); }
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-  if (evt.type.startsWith("customer.subscription.")) {
-    const sub = evt.data.object as Stripe.Subscription;
-    const customerId = sub.customer as string;
-    const priceId = sub.items.data[0].price.id;
-    const plan = priceId === process.env.STRIPE_PRICE_PRO ? "pro" : "basic";
-    const sc = await prisma.stripeCustomer.update({
-      where:{ customer: customerId }, data:{ priceId, plan, status: sub.status }
-    }).catch(()=>null);
-    if (sc) await prisma.user.update({ where:{ id: sc.userId }, data:{ plan: sub.status === "active" ? plan : "free" }});
+export async function POST(req: Request) {
+  const sig = headers().get("stripe-signature");
+  if (!sig) return NextResponse.json({ error: "No signature" }, { status: 400 });
+
+  const whSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+  let event;
+
+  try {
+    const body = await req.text(); // raw body for Stripe
+    event = await stripe.webhooks.constructEventAsync(body, sig, whSecret);
+  } catch (err: any) {
+    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
-  if (evt.type === "customer.subscription.deleted") {
-    const sub = evt.data.object as Stripe.Subscription;
-    const sc = await prisma.stripeCustomer.update({ where:{ customer: sub.customer as string }, data:{ status:"canceled" }}).catch(()=>null);
-    if (sc) await prisma.user.update({ where:{ id: sc.userId }, data:{ plan: "free" }});
+
+  try {
+    // OPTIONAL: log all events
+    await prisma.webhookEvent.create({
+      data: { id: event.id, type: event.type, payload: event as any },
+    });
+  } catch {}
+
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as any;
+      const userId = session.metadata?.userId as string | undefined;
+      const plan = session.metadata?.plan as string | undefined;
+
+      // fetch full session (to get customer/sub id)
+      const full = await stripe.checkout.sessions.retrieve(session.id, {
+        expand: ["subscription", "customer"],
+      });
+
+      const stripeCustomerId =
+        (full.customer as any)?.id ?? (full.customer as string) ?? undefined;
+      const stripeSubId =
+        (full.subscription as any)?.id ?? (full.subscription as string) ?? undefined;
+
+      if (userId && stripeCustomerId) {
+        // ensure StripeCustomer
+        await prisma.stripeCustomer.upsert({
+          where: { userId },
+          update: { stripeId: stripeCustomerId },
+          create: { userId, stripeId: stripeCustomerId, id: crypto.randomUUID() },
+        });
+      }
+
+      if (userId && stripeSubId) {
+        // upsert subscription
+        await prisma.subscription.upsert({
+          where: { stripeSubId },
+          update: {
+            plan: plan ?? "basic",
+            status: "active",
+            currentPeriodStart: new Date(
+              (full.subscription as any)?.current_period_start * 1000
+            ),
+            currentPeriodEnd: new Date(
+              (full.subscription as any)?.current_period_end * 1000
+            ),
+          },
+          create: {
+            id: crypto.randomUUID(),
+            userId,
+            stripeSubId,
+            plan: plan ?? "basic",
+            status: "active",
+            currentPeriodStart: new Date(
+              (full.subscription as any)?.current_period_start * 1000
+            ),
+            currentPeriodEnd: new Date(
+              (full.subscription as any)?.current_period_end * 1000
+            ),
+          },
+        });
+
+        // set user.plan
+        await prisma.user.update({
+          where: { id: userId },
+          data: { plan: plan ?? "basic" },
+        });
+      }
+      break;
+    }
+
+    case "customer.subscription.deleted": {
+      const sub = event.data.object as any;
+      await prisma.subscription
+        .update({
+          where: { stripeSubId: sub.id },
+          data: { status: "canceled" },
+        })
+        .catch(() => {});
+      break;
+    }
   }
-  return NextResponse.json({ received: true });
+
+  return NextResponse.json({ received: true }, { status: 200 });
 }
-export const config = { api: { bodyParser: false } } as any;
