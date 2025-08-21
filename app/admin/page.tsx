@@ -1,11 +1,12 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { prisma } from "@/lib/db";
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  const users = await prisma.user.count();
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Admin</h1>
-      <p>Basic admin placeholder.</p>
+    <main className="p-8">
+      <h1 className="text-2xl font-semibold">Admin</h1>
+      <p className="mt-4">Users: {users}</p>
     </main>
   );
 }
+
