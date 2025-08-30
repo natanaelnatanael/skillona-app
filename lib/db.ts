@@ -6,6 +6,7 @@ export const db = g.prisma ?? new PrismaClient();
 export const prisma = db; // alias
 
 if (process.env.NODE_ENV !== "production") g.prisma = db;
+export { db as prisma };
 
 
 
