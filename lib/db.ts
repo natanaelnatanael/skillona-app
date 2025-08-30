@@ -1,21 +1,12 @@
-// lib/db.ts
 import { PrismaClient } from "@prisma/client";
 
-// Uvijek koristi samo jednu instancu u developmentu!
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const g = globalThis as unknown as { prisma?: PrismaClient };
 
-let prisma: PrismaClient;
+export const db = g.prisma ?? new PrismaClient();
+export const prisma = db; // alias
 
-if (process.env.NODE_ENV === "production") {
-  prisma = new PrismaClient();
-} else {
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient();
-  }
-  prisma = globalForPrisma.prisma;
-}
+if (process.env.NODE_ENV !== "production") g.prisma = db;
 
-export { prisma };
 
 
 
