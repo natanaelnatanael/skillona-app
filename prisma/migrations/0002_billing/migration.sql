@@ -1,0 +1,2 @@
+-- optional billing tables (nije nužno za build) – ostavimo prazno da prođe
+-- kasnije možemo dodati Subscription, StripeCustomer, WebhookEvent
