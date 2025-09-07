@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,19 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Plan {
-  FREE
-  BASIC
-  PRO
-}
-
 model User {
   id        String   @id @default(cuid())
   clerkId   String   @unique
   email     String   @unique
-  plan      Plan     @default(FREE)
+  plan      String   @default("free")
   createdAt DateTime @default(now())
-
   jobs      Job[]
 }
 
