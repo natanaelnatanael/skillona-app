@@ -1,5 +1,14 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
-export default clerkMiddleware();
-export const config = { matcher: ["/dashboard(.*)","/admin(.*)"] };
+import { authMiddleware } from "@clerk/nextjs";
 
+export default authMiddleware({
+  publicRoutes: ["/", "/api/status"],
+});
 
+export const config = {
+  matcher: [
+    // zaštiti sve osim statičkih fajlova i _next
+    "/((?!.*\\..*|_next).*)",
+    "/",
+    "/(api|trpc)(.*)",
+  ],
+};
