@@ -1,14 +1,23 @@
 import { PrismaClient } from "@prisma/client";
 
-const g = globalThis as unknown as { prisma?: PrismaClient };
+// Extend the global object type for better type safety
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
+}
 
-export const db = g.prisma ?? new PrismaClient();
-export const prisma = db; // alias
+let prisma: PrismaClient;
 
-if (process.env.NODE_ENV !== "production") g.prisma = db;
-export { db as prisma };
+if (process.env.NODE_ENV === "production") {
+  prisma = new PrismaClient();
+} else {
+  if (!global.prisma) {
+    global.prisma = new PrismaClient();
+  }
+  prisma = global.prisma;
+}
 
-
+export default prisma;
 
 
 
