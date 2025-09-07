@@ -1,14 +1,19 @@
-import { authMiddleware } from "@clerk/nextjs";
+// middleware.ts
+import { clerkMiddleware } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-export default authMiddleware({
-  publicRoutes: ["/", "/api/status"],
+export default clerkMiddleware({
+  // Javno dostupne rute:
+  publicRoutes: ['/', '/sign-in(.*)', '/sign-up(.*)', '/api/status'],
+  // Zaštiti sve ispod /dashboard
+  ignoredRoutes: ['/api/status'],
 });
 
 export const config = {
   matcher: [
-    // zaštiti sve osim statičkih fajlova i _next
-    "/((?!.*\\..*|_next).*)",
-    "/",
-    "/(api|trpc)(.*)",
+    // sve app-rute
+    '/((?!_next|.*\\..*).*)',
+    // uvijek middleware na ove:
+    '/(api|trpc)(.*)',
   ],
 };
