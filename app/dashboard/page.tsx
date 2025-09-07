@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 // Server Component (default in /app)
 import { db } from "@lib/db";
 
