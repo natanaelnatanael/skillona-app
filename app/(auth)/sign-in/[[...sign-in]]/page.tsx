@@ -1,6 +1,11 @@
-// app/sign-in/[[...sign-in]]/page.tsx
-import { SignIn } from '@clerk/nextjs';
+"use client";
+
+import { SignIn } from "@clerk/nextjs";
 
 export default function Page() {
-  return <div style={{ display:'grid', placeItems:'center', minHeight:'70vh' }}><SignIn /></div>;
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center p-6">
+      <SignIn routing="path" path="/sign-in" />
+    </div>
+  );
 }
