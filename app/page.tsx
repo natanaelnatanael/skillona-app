@@ -1,21 +1,59 @@
-// app/page.tsx
-export default function Home() {
+import {
+  SignedIn,
+  SignedOut,
+  SignInButton,
+  SignUpButton,
+  UserButton,
+} from "@clerk/nextjs";
+
+export default function HomePage() {
   return (
-    <main style={{ maxWidth: 720, margin: '40px auto', padding: 20, fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Skillona — AI Viral Video Generator</h1>
-      <p style={{ opacity: 0.7 }}>
-        Ovo je landing placeholder. Otvori <code>/sign-in</code>, <code>/sign-up</code> ili <code>/dashboard</code>.
-      </p>
+    <main style={{ padding: 24 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
+        Welcome to Skillona
+      </h1>
 
-      <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-        <a href="/sign-in" style={{ padding: '10px 14px', border: '1px solid #ccc', borderRadius: 8, textDecoration: 'none' }}>Sign in</a>
-        <a href="/sign-up" style={{ padding: '10px 14px', border: '1px solid #ccc', borderRadius: 8, textDecoration: 'none' }}>Sign up</a>
-        <a href="/dashboard" style={{ padding: '10px 14px', border: '1px solid #ccc', borderRadius: 8, textDecoration: 'none' }}>Dashboard</a>
-      </div>
+      {/* Ako user nije prijavljen */}
+      <SignedOut>
+        <div style={{ display: "flex", gap: 12 }}>
+          <SignInButton mode="redirect">
+            <button
+              style={{
+                background: "#6c47ff",
+                color: "#fff",
+                padding: "10px 18px",
+                borderRadius: 8,
+                fontWeight: 600,
+              }}
+            >
+              Sign In
+            </button>
+          </SignInButton>
 
-      <pre style={{ marginTop: 24, background: '#f6f6f6', padding: 12, borderRadius: 8 }}>
-        GET /api/status → provjera backenda
-      </pre>
+          <SignUpButton mode="redirect">
+            <button
+              style={{
+                background: "#333",
+                color: "#fff",
+                padding: "10px 18px",
+                borderRadius: 8,
+                fontWeight: 600,
+              }}
+            >
+              Sign Up
+            </button>
+          </SignUpButton>
+        </div>
+      </SignedOut>
+
+      {/* Ako je user prijavljen */}
+      <SignedIn>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <p style={{ fontSize: 18 }}>You are signed in 🎉</p>
+          <UserButton afterSignOutUrl="/" />
+        </div>
+      </SignedIn>
     </main>
   );
 }
+
