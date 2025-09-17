@@ -1,21 +1,20 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { db } from "@lib/db";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
+import { auth } from '@clerk/nextjs/server';
+import { db } from '@lib/db';
 
 export default async function DashboardPage() {
   // provjeri je li korisnik prijavljen
-  const { userId } = auth();
+  const { userId } = await auth();
   if (!userId) {
-    redirect("/sign-in");
+    redirect('/sign-in');
   }
 
-  // Uzmi zadnjih 10 poslova
   const jobs = await db.job.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: 'desc' },
     take: 10,
   });
 
@@ -26,4 +25,3 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
