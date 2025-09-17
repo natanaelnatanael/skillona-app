@@ -1,11 +1,19 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-// Server Component (default in /app)
+
 import { db } from "@lib/db";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
-  // Uzmi zadnjih 10 poslova (prilagodi po želji)
+  // provjeri je li korisnik prijavljen
+  const { userId } = auth();
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
+  // Uzmi zadnjih 10 poslova
   const jobs = await db.job.findMany({
     orderBy: { createdAt: "desc" },
     take: 10,
@@ -18,3 +26,4 @@ export default async function DashboardPage() {
     </main>
   );
 }
+
