@@ -1,6 +1,11 @@
-// app/sign-up/[[...sign-up]]/page.tsx
-import { SignUp } from '@clerk/nextjs';
+"use client";
+
+import { SignUp } from "@clerk/nextjs";
 
 export default function Page() {
-  return <div style={{ display:'grid', placeItems:'center', minHeight:'70vh' }}><SignUp /></div>;
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center p-6">
+      <SignUp routing="path" path="/sign-up" />
+    </div>
+  );
 }
